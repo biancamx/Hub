@@ -2,7 +2,7 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111827;
 }
 
 @theme inline {
@@ -12,15 +12,60 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: #ffffff;
 }
 
 body {
-  background: var(--background);
+  background: #ffffff;
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.light-admin .bg-slate-950 {
+  background-color: #f8fafc;
+}
+
+.light-admin .bg-slate-900 {
+  background-color: #ffffff;
+}
+
+.light-admin .bg-slate-800 {
+  background-color: #f1f5f9;
+}
+
+.light-admin .bg-slate-800\/40 {
+  background-color: #f8fafc;
+}
+
+.light-admin .border-slate-800,
+.light-admin .border-slate-700 {
+  border-color: #e2e8f0;
+}
+
+.light-admin .text-white {
+  color: #0f172a;
+}
+
+.light-admin .text-slate-100,
+.light-admin .text-slate-300 {
+  color: #334155;
+}
+
+.light-admin .text-slate-400,
+.light-admin .text-slate-500 {
+  color: #64748b;
+}
+
+.light-admin .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0;
+}
+
+.light-admin .hover\:bg-slate-800\/30:hover {
+  background-color: #f8fafc;
+}
+
+.light-admin .bg-blue-600,
+.light-admin .bg-amber-600 {
+  color: #ffffff;
 }

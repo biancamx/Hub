@@ -9,12 +9,22 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@auth/mongodb-adapter": "^3.11.3",
+    "bcryptjs": "^3.0.3",
+    "bson": "^4.7.2",
+    "framer-motion": "^13.4.0",
+    "lucide-react": "^1.47.0",
+    "mongodb": "^6.21.0",
+    "mongoose": "^9.10.1",
     "next": "16.3.5",
+    "next-auth": "^5.0.0-beta.32",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-icons": "^5.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
