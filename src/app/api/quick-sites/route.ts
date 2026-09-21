@@ -10,16 +10,18 @@ export async function GET() {
     await connectToDatabase();
     const session = await auth();
     const isAdmin = isAdminRole((session?.user as any)?.role);
-    let sites = await QuickSite.find(isAdmin ? {} : { active: true }).sort({ createdAt: 1 });
+    const userEmail = (session?.user?.email || "").toLowerCase().trim();
+    const filter = isAdmin ? {} : { active: true, $or: [{ visibilityType: "all" }, { visibilityType: "restricted", allowedUsers: userEmail }] };
+    let sites = await QuickSite.find(filter).sort({ createdAt: 1 });
 
     if (sites.length === 0 && isAdmin) {
       sites = await QuickSite.insertMany([
-        { title: "Desenhos", url: "https://exemplo.com/desenhos", active: true },
-        { title: "Manuais", url: "https://exemplo.com/manuais", active: true },
-        { title: "Projetos", url: "https://exemplo.com/projetos", active: true },
-        { title: "Padrões", url: "https://exemplo.com/padroes", active: true },
-        { title: "Normas", url: "https://exemplo.com/normas", active: true },
-        { title: "Portais", url: "https://exemplo.com/portais", active: true },
+        { title: "Desenhos", url: "https://exemplo.com/desenhos", active: true, visibilityType: "all", allowedUsers: [] },
+        { title: "Manuais", url: "https://exemplo.com/manuais", active: true, visibilityType: "all", allowedUsers: [] },
+        { title: "Projetos", url: "https://exemplo.com/projetos", active: true, visibilityType: "all", allowedUsers: [] },
+        { title: "Padrões", url: "https://exemplo.com/padroes", active: true, visibilityType: "all", allowedUsers: [] },
+        { title: "Normas", url: "https://exemplo.com/normas", active: true, visibilityType: "all", allowedUsers: [] },
+        { title: "Portais", url: "https://exemplo.com/portais", active: true, visibilityType: "all", allowedUsers: [] },
       ]);
     }
 
@@ -36,13 +38,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Acesso negado." }, { status: 403 });
     }
 
-    const { title, url, category } = await request.json();
+    const { title, url, category, visibilityType, allowedUsers } = await request.json();
     if (!title || !url) {
       return NextResponse.json({ success: false, error: "Título e Link são obrigatórios." }, { status: 400 });
     }
 
     await connectToDatabase();
-    const newSite = await QuickSite.create({ title, url, category: category || "Geral", active: true });
+    const newSite = await QuickSite.create({ title, url, category: category || "Geral", active: true, visibilityType: visibilityType || "all", allowedUsers: Array.isArray(allowedUsers) ? allowedUsers.map((email: string) => email.toLowerCase().trim()) : [] });
     return NextResponse.json({ success: true, data: newSite }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -56,7 +58,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: false, error: "Acesso negado." }, { status: 403 });
     }
 
-    const { id, title, url, active } = await request.json();
+    const { id, title, url, active, visibilityType, allowedUsers } = await request.json();
     if (!id) return NextResponse.json({ success: false, error: "ID obrigatório." }, { status: 400 });
 
     await connectToDatabase();
@@ -64,6 +66,8 @@ export async function PATCH(request: Request) {
     if (title !== undefined) update.title = title;
     if (url !== undefined) update.url = url;
     if (active !== undefined) update.active = active;
+    if (visibilityType !== undefined) update.visibilityType = visibilityType;
+    if (allowedUsers !== undefined) update.allowedUsers = Array.isArray(allowedUsers) ? allowedUsers.map((email: string) => email.toLowerCase().trim()) : [];
 
     const updated = await QuickSite.findByIdAndUpdate(id, { $set: update }, { new: true });
     if (!updated) return NextResponse.json({ success: false, error: "Atalho não encontrado." }, { status: 404 });

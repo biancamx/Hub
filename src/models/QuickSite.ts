@@ -5,6 +5,8 @@ export interface IQuickSite extends Document {
   url: string;
   category?: string;
   active: boolean;
+  visibilityType: "all" | "restricted";
+  allowedUsers: string[];
   createdAt: Date;
 }
 
@@ -14,6 +16,8 @@ const QuickSiteSchema = new Schema<IQuickSite>(
     url: { type: String, required: [true, "A URL é obrigatória"] },
     category: { type: String, default: "Geral" },
     active: { type: Boolean, default: true },
+    visibilityType: { type: String, enum: ["all", "restricted"], default: "all" },
+    allowedUsers: { type: [String], default: [] },
   },
   { timestamps: true }
 );

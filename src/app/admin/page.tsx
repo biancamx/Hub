@@ -81,6 +81,8 @@ interface QuickSite {
   title: string;
   url: string;
   active: boolean;
+  visibilityType?: "all" | "restricted";
+  allowedUsers?: string[];
 }
 
 export default function AdminPage() {
@@ -135,7 +137,7 @@ export default function AdminPage() {
   const [approvalRequest, setApprovalRequest] = useState<AccessRequest | null>(null);
   const [quickSites, setQuickSites] = useState<QuickSite[]>([]);
   const [isQuickSiteModalOpen, setIsQuickSiteModalOpen] = useState(false);
-  const [quickSiteForm, setQuickSiteForm] = useState({ id: "", title: "", url: "" });
+  const [quickSiteForm, setQuickSiteForm] = useState({ id: "", title: "", url: "", visibilityType: "all" as "all" | "restricted", allowedUsers: [] as string[] });
 
   useEffect(() => {
     fetchCards();
@@ -209,9 +211,7 @@ export default function AdminPage() {
     event.preventDefault();
     try {
       const method = quickSiteForm.id ? "PATCH" : "POST";
-      const body = quickSiteForm.id
-        ? { id: quickSiteForm.id, title: quickSiteForm.title, url: quickSiteForm.url }
-        : { title: quickSiteForm.title, url: quickSiteForm.url };
+      const body = quickSiteForm;
       const res = await fetch("/api/quick-sites", {
         method,
         headers: { "Content-Type": "application/json" },
@@ -221,7 +221,7 @@ export default function AdminPage() {
       if (data.success) {
         setSuccess(quickSiteForm.id ? "Atalho atualizado!" : "Novo atalho cadastrado!");
         setIsQuickSiteModalOpen(false);
-        setQuickSiteForm({ id: "", title: "", url: "" });
+        setQuickSiteForm({ id: "", title: "", url: "", visibilityType: "all", allowedUsers: [] });
         fetchQuickSites();
       } else {
         setError(data.error || "Erro ao salvar atalho.");
@@ -720,7 +720,7 @@ export default function AdminPage() {
                   <h3 className="text-lg font-black text-slate-900 tracking-tight">Atalhos do Painel &quot;Acessos Sites&quot;</h3>
                   <p className="text-xs text-slate-500 font-medium">Controle os botões de sites disponíveis para todos os colaboradores no Hub.</p>
                 </div>
-                <button onClick={() => { setQuickSiteForm({ id: "", title: "", url: "" }); setIsQuickSiteModalOpen(true); }} className="flex items-center gap-2 bg-slate-900 hover:bg-blue-600 text-white font-bold px-4 py-2.5 rounded-2xl transition shadow-sm text-xs">
+                <button onClick={() => { setQuickSiteForm({ id: "", title: "", url: "", visibilityType: "all", allowedUsers: [] }); setIsQuickSiteModalOpen(true); }} className="flex items-center gap-2 bg-slate-900 hover:bg-blue-600 text-white font-bold px-4 py-2.5 rounded-2xl transition shadow-sm text-xs">
                   <Plus size={15} /> Novo Atalho de Site
                 </button>
               </div>
@@ -737,7 +737,7 @@ export default function AdminPage() {
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <button onClick={() => toggleQuickSiteActive(site._id, site.active)} title={site.active ? "Ocultar do Hub" : "Tornar visível no Hub"} className={`p-1.5 rounded-xl border text-xs font-bold transition ${site.active ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-amber-50 hover:text-amber-700" : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"}`}>{site.active ? "Ocultar" : "Mostrar"}</button>
-                      <button onClick={() => { setQuickSiteForm({ id: site._id, title: site.title, url: site.url }); setIsQuickSiteModalOpen(true); }} className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition" title="Editar Link/Nome"><Edit2 size={13} /></button>
+                      <button onClick={() => { setQuickSiteForm({ id: site._id, title: site.title, url: site.url, visibilityType: site.visibilityType || "all", allowedUsers: site.allowedUsers || [] }); setIsQuickSiteModalOpen(true); }} className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition" title="Editar Link/Nome"><Edit2 size={13} /></button>
                       <button onClick={() => handleDeleteQuickSite(site._id)} className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition" title="Excluir"><Trash2 size={13} /></button>
                     </div>
                   </div>
@@ -1042,9 +1042,10 @@ export default function AdminPage() {
 
       {isQuickSiteModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white border border-slate-200 rounded-[32px] p-6 max-w-sm w-full shadow-2xl relative">
+          <div className="bg-white border border-slate-200 rounded-[32px] p-6 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button type="button" onClick={() => setIsQuickSiteModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full bg-slate-100"><X size={16} /></button>
-            <h3 className="text-base font-extrabold text-slate-900 mb-4">{quickSiteForm.id ? "Editar Atalho de Site" : "Novo Atalho de Site"}</h3>
+            <h3 className="text-base font-extrabold text-slate-900 mb-1">{quickSiteForm.id ? "Editar Atalho de Site" : "Novo Atalho de Site"}</h3>
+            <p className="text-xs text-slate-500 mb-4">Defina o nome, link e quem pode visualizar.</p>
             <form onSubmit={handleSaveQuickSite} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Título do Botão *</label>
@@ -1054,6 +1055,29 @@ export default function AdminPage() {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">URL de Destino *</label>
                 <input type="url" required value={quickSiteForm.url} onChange={(event) => setQuickSiteForm({ ...quickSiteForm, url: event.target.value })} placeholder="https://sistema.empresa.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500" />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Disponibilidade de Acesso</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setQuickSiteForm({ ...quickSiteForm, visibilityType: "all" })} className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${quickSiteForm.visibilityType === "all" ? "bg-blue-50 text-blue-700 border-blue-300" : "bg-slate-50 text-slate-600 border-slate-200"}`}><Globe size={13} /> Liberado para Todos</button>
+                  <button type="button" onClick={() => setQuickSiteForm({ ...quickSiteForm, visibilityType: "restricted" })} className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${quickSiteForm.visibilityType === "restricted" ? "bg-amber-50 text-amber-800 border-amber-300" : "bg-slate-50 text-slate-600 border-slate-200"}`}><ShieldAlert size={13} /> Restrito a Usuários</button>
+                </div>
+              </div>
+              {quickSiteForm.visibilityType === "restricted" && <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in">
+                <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b border-slate-200/80">
+                  <span className="text-[11px] font-bold text-slate-700">Usuários autorizados ({quickSiteForm.allowedUsers.length})</span>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <button type="button" onClick={() => setQuickSiteForm({ ...quickSiteForm, allowedUsers: users.filter((user) => user.role !== "master").map((user) => user.email.toLowerCase().trim()) })} className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold transition border border-blue-200">Selecionar Todos</button>
+                    <button type="button" onClick={() => setQuickSiteForm({ ...quickSiteForm, allowedUsers: [] })} className="px-2 py-0.5 rounded-lg bg-slate-200/80 hover:bg-slate-300 text-slate-600 font-bold transition">Limpar</button>
+                  </div>
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100">
+                  {users.filter((user) => user.role !== "master").map((user) => {
+                    const email = user.email.toLowerCase().trim();
+                    const checked = quickSiteForm.allowedUsers.includes(email);
+                    return <label key={user._id} className="flex items-center gap-2.5 pt-1.5 text-xs text-slate-700 cursor-pointer hover:text-blue-600"><input type="checkbox" checked={checked} onChange={(event) => setQuickSiteForm({ ...quickSiteForm, allowedUsers: event.target.checked ? [...quickSiteForm.allowedUsers, email] : quickSiteForm.allowedUsers.filter((item) => item !== email) })} className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" /><span className="min-w-0 flex-1 truncate"><strong className="block truncate">{user.name || "Sem Nome"}</strong><small className="block text-[10px] text-slate-400 truncate">{user.email}</small></span></label>;
+                  })}
+                </div>
+              </div>}
               <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-blue-500/20 mt-2">{quickSiteForm.id ? "Salvar Alterações" : "Adicionar Atalho"}</button>
             </form>
           </div>
