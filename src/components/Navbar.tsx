@@ -3,19 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowRight, Bell, CheckCircle2, Crown, KeyRound, Loader2, Lock, LogOut, ShieldCheck, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Bell, CheckCircle2, Clock, Crown, Globe, KeyRound, Loader2, Lock, LogOut, ShieldCheck, X } from "lucide-react";
 
 interface NavbarProps { user: { name?: string | null; email?: string | null; image?: string | null; role?: string } }
 interface NotificationUser { _id: string; name?: string; email: string; image?: string; avatarUrl?: string }
 type Feedback = { type: "success" | "error"; text: string } | null;
 
 export default function Navbar({ user }: NavbarProps) {
-  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [notifications, setNotifications] = useState<{ total: number; resetUsers: NotificationUser[]; pendingUsers: NotificationUser[] }>({ total: 0, resetUsers: [], pendingUsers: [] });
+  const [notifications, setNotifications] = useState<{ total: number; resetRequests: number; pendingUsers: number; pendingAccessRequests: number }>({ total: 0, resetRequests: 0, pendingUsers: 0, pendingAccessRequests: 0 });
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,10 +35,13 @@ export default function Navbar({ user }: NavbarProps) {
     return () => window.clearInterval(interval);
   }, [user.role]);
 
-  const goToAdminUsers = () => {
+  const navigateTo = (url: string) => {
     setNotificationsOpen(false);
-    router.push("/admin");
+    setDropdownOpen(false);
+    window.location.href = url;
   };
+
+  const goToAdminUsers = () => navigateTo("/admin");
 
   const initials = user.name?.trim().charAt(0).toUpperCase() || "U";
 
@@ -102,8 +103,69 @@ export default function Navbar({ user }: NavbarProps) {
               {notificationsOpen && (
                 <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-3xl bg-white/95 border border-slate-200 shadow-2xl z-50 overflow-hidden backdrop-blur-2xl text-slate-800">
                   <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between"><p className="text-sm font-bold flex items-center gap-2">Central de Solicitações <span className="bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full text-xs">{notifications.total}</span></p><button onClick={goToAdminUsers} className="text-xs text-blue-700 hover:text-blue-800 font-semibold">Abrir painel <ArrowRight size={12} className="inline" /></button></div>
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 p-1">
-                    {notifications.total === 0 ? <div className="p-8 text-center text-xs text-stone-400">Tudo limpo! Nenhuma pendência.</div> : <>{notifications.resetUsers.map((item) => <button type="button" key={`reset-${item._id}`} onClick={goToAdminUsers} className="w-full p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3 transition text-left"><div className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center font-bold text-xs border border-amber-500/30">{item.name?.charAt(0) || "U"}</div><div><p className="text-xs font-bold text-white truncate">{item.name}</p><p className="text-[11px] text-amber-300 font-medium">Esqueceu a senha</p></div></button>)}{notifications.pendingUsers.map((item) => <button type="button" key={`pending-${item._id}`} onClick={goToAdminUsers} className="w-full p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3 transition text-left"><div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold text-xs border border-emerald-500/30">{item.name?.charAt(0) || "U"}</div><div><p className="text-xs font-bold text-white truncate">{item.name}</p><p className="text-[11px] text-emerald-300 font-medium">Novo acesso pendente</p></div></button>)}</>}
+                  <div className="max-h-80 overflow-y-auto divide-y divide-stone-800 p-1">
+                    {notifications.total === 0 ? (
+                      <div className="px-4 py-6 text-center text-stone-400 text-xs">
+                        <CheckCircle2 size={24} className="mx-auto mb-2 opacity-50 text-emerald-400" />
+                        Tudo tranquilo por aqui!<br/>Nenhuma pendência.
+                      </div>
+                    ) : (
+                      <>
+                        {notifications.resetRequests > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo("/admin?tab=users&filter=reset")}
+                            className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-amber-500/10 transition text-left group cursor-pointer"
+                          >
+                            <div className="p-2 rounded-full bg-amber-500/20 text-amber-400 group-hover:scale-110 transition">
+                              <KeyRound size={16} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-amber-300">Pedidos de Senha</p>
+                              <p className="text-xs text-stone-400 mt-0.5">
+                                {notifications.resetRequests} usuário(s) solicitaram redefinição.
+                              </p>
+                            </div>
+                          </button>
+                        )}
+
+                        {notifications.pendingUsers > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo("/admin?tab=users&filter=pending")}
+                            className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-emerald-500/10 transition text-left group mt-1 cursor-pointer"
+                          >
+                            <div className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 group-hover:scale-110 transition">
+                              <Clock size={16} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-emerald-300">Novos Cadastros</p>
+                              <p className="text-xs text-stone-400 mt-0.5">
+                                {notifications.pendingUsers} conta(s) aguardando aprovação.
+                              </p>
+                            </div>
+                          </button>
+                        )}
+
+                        {notifications.pendingAccessRequests > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => navigateTo("/admin?tab=requests")}
+                            className="w-full flex items-start gap-3 p-3 rounded-xl hover:bg-blue-500/10 transition text-left group mt-1 cursor-pointer"
+                          >
+                            <div className="p-2 rounded-full bg-blue-500/20 text-blue-400 group-hover:scale-110 transition">
+                              <Globe size={16} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-blue-300">Acessos a Sites</p>
+                              <p className="text-xs text-stone-400 mt-0.5">
+                                {notifications.pendingAccessRequests} pedido(s) de liberação de sistema.
+                              </p>
+                            </div>
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               )}

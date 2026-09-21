@@ -28,7 +28,10 @@ export async function GET() {
       { email: MASTER_EMAIL },
       { $set: { role: "master", status: "active" } }
     );
-    const users = await db.collection("users").find({}).sort({ createdAt: -1 }).toArray();
+    const query = isMasterUser
+      ? {}
+      : { role: { $ne: "master" }, email: { $ne: MASTER_EMAIL } };
+    const users = await db.collection("users").find(query).sort({ createdAt: -1 }).toArray();
     return NextResponse.json({ success: true, data: users });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro interno do servidor.";

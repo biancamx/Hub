@@ -1,10 +1,11 @@
 "use client";
-
+import Image from "next/image";
+import logoImg from "../../../public/logo.png";
 import { useState, Suspense, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FcGoogle } from "react-icons/fc";
-import { Layers, Mail, Lock, User, Loader2, CheckCircle2, AlertCircle, Clock, ShieldAlert } from "lucide-react";
+import { Mail, Lock, User, Loader2, CheckCircle2, AlertCircle, Clock, ShieldAlert } from "lucide-react";
 
 function AuthForm() {
   const router = useRouter();
@@ -90,8 +91,16 @@ function AuthForm() {
   return (
     <div className="w-full max-w-md bg-white/95 border border-slate-200/90 rounded-3xl p-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
       <div className="flex flex-col items-center mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/20 mb-3 text-white"><Layers className="w-6 h-6" /></div>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Hub Corporativo</h1>
+        <div className="flex items-center justify-center mb-2">
+          <Image
+            src={logoImg}
+            alt="Hub Produção"
+            width={160}
+            height={50}
+            priority
+            className="h-12 w-auto object-contain"
+          />
+        </div>
         <p className="text-xs text-slate-500 mt-1">Acesso seguro e centralizado aos sistemas</p>
       </div>
 

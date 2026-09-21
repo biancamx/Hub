@@ -31,6 +31,8 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import Link from "next/link";
+import ApproveRequestModal from "@/components/ApproveRequestModal";
+import AdminTutorial from "@/components/AdminTutorial";
 
 interface Card {
   _id: string;
@@ -61,17 +63,54 @@ interface LogData {
   createdAt: string;
 }
 
+interface AccessRequest {
+  _id: string;
+  name: string;
+  email: string;
+  empresa: string;
+  setor: string;
+  systemInterest: string;
+  priority: string;
+  message: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+interface QuickSite {
+  _id: string;
+  title: string;
+  url: string;
+  active: boolean;
+}
+
 export default function AdminPage() {
   const { data: session } = useSession();
   const currentRole = (session?.user as { role?: string } | undefined)?.role;
   const isMaster = currentRole === "master";
 
-  const [activeTab, setActiveTab] = useState<"cards" | "users" | "logs">("cards");
+  const getInitialTab = (): "cards" | "users" | "requests" | "logs" => {
+    if (typeof window !== "undefined") {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      if (tab && ["cards", "users", "requests", "logs"].includes(tab)) return tab as "cards" | "users" | "requests" | "logs";
+    }
+    return "cards";
+  };
+
+  const getInitialFilter = (): "all" | "pending" | "reset" | "active" => {
+    if (typeof window !== "undefined") {
+      const filter = new URLSearchParams(window.location.search).get("filter");
+      if (filter && ["all", "pending", "reset", "active"].includes(filter)) return filter as "all" | "pending" | "reset" | "active";
+    }
+    return "all";
+  };
+
+  const [activeTab, setActiveTab] = useState<"cards" | "users" | "requests" | "logs">(getInitialTab);
   const [cards, setCards] = useState<Card[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [logs, setLogs] = useState<LogData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [userFilter, setUserFilter] = useState<"all" | "pending" | "reset" | "active">("all");
+  const [userFilter, setUserFilter] = useState<"all" | "pending" | "reset" | "active">(getInitialFilter);
   const [logLevelFilter, setLogLevelFilter] = useState<"all" | "info" | "warn" | "error">("all");
   const [loading, setLoading] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -93,15 +132,36 @@ export default function AdminPage() {
   const [userNameEdit, setUserNameEdit] = useState("");
   const [userRoleEdit, setUserRoleEdit] = useState<"master" | "admin" | "user">("user");
   const [userStatusEdit, setUserStatusEdit] = useState<"pending" | "active" | "rejected">("active");
+  const [approvalRequest, setApprovalRequest] = useState<AccessRequest | null>(null);
+  const [quickSites, setQuickSites] = useState<QuickSite[]>([]);
+  const [isQuickSiteModalOpen, setIsQuickSiteModalOpen] = useState(false);
+  const [quickSiteForm, setQuickSiteForm] = useState({ id: "", title: "", url: "" });
 
   useEffect(() => {
     fetchCards();
     fetchUsers();
+    fetchRequests();
+    fetchQuickSites();
   }, []);
 
   useEffect(() => {
     if (activeTab === "logs" && isMaster) fetchLogs();
   }, [activeTab, logLevelFilter, isMaster]);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+      const filter = params.get("filter");
+
+      if (tab && ["cards", "users", "requests", "logs"].includes(tab)) setActiveTab(tab as "cards" | "users" | "requests" | "logs");
+      if (filter && ["all", "pending", "reset", "active"].includes(filter)) setUserFilter(filter as "all" | "pending" | "reset" | "active");
+    };
+
+    handleUrlChange();
+    window.addEventListener("popstate", handleUrlChange);
+    return () => window.removeEventListener("popstate", handleUrlChange);
+  }, []);
 
   const fetchCards = async () => {
     try {
@@ -122,6 +182,85 @@ export default function AdminPage() {
       if (result.success) setUsers(result.data);
     } catch {
       console.error("Erro ao carregar usuários");
+    }
+  };
+
+  const fetchRequests = async () => {
+    try {
+      const res = await fetch("/api/admin/requests");
+      const result = await res.json();
+      if (result.success) setAccessRequests(result.data);
+    } catch {
+      console.error("Erro ao carregar solicitações de acesso");
+    }
+  };
+
+  const fetchQuickSites = async () => {
+    try {
+      const res = await fetch("/api/quick-sites", { cache: "no-store" });
+      const data = await res.json();
+      if (data.success) setQuickSites(data.data);
+    } catch {
+      console.error("Erro ao carregar atalhos rápidos");
+    }
+  };
+
+  const handleSaveQuickSite = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      const method = quickSiteForm.id ? "PATCH" : "POST";
+      const body = quickSiteForm.id
+        ? { id: quickSiteForm.id, title: quickSiteForm.title, url: quickSiteForm.url }
+        : { title: quickSiteForm.title, url: quickSiteForm.url };
+      const res = await fetch("/api/quick-sites", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess(quickSiteForm.id ? "Atalho atualizado!" : "Novo atalho cadastrado!");
+        setIsQuickSiteModalOpen(false);
+        setQuickSiteForm({ id: "", title: "", url: "" });
+        fetchQuickSites();
+      } else {
+        setError(data.error || "Erro ao salvar atalho.");
+      }
+    } catch {
+      setError("Erro ao salvar atalho.");
+    }
+  };
+
+  const toggleQuickSiteActive = async (id: string, currentActive: boolean) => {
+    try {
+      const res = await fetch("/api/quick-sites", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, active: !currentActive }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setQuickSites((previous) => previous.map((site) => site._id === id ? { ...site, active: !currentActive } : site));
+        setSuccess(`Visibilidade alterada! O atalho agora está ${!currentActive ? "VISÍVEL" : "OCULTO"}.`);
+      }
+    } catch {
+      setError("Erro ao alterar visibilidade.");
+    }
+  };
+
+  const handleDeleteQuickSite = async (id: string) => {
+    if (!window.confirm("Deseja realmente excluir este atalho de site?")) return;
+    try {
+      const res = await fetch(`/api/quick-sites?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setQuickSites((previous) => previous.filter((site) => site._id !== id));
+        setSuccess("Atalho excluído com sucesso!");
+      } else {
+        setError(data.error || "Erro ao excluir atalho.");
+      }
+    } catch {
+      setError("Erro ao excluir atalho.");
     }
   };
 
@@ -369,6 +508,37 @@ export default function AdminPage() {
     }
   };
 
+  const handleRequestAction = async (requestId: string, status: "approved" | "rejected") => {
+    if (status === "approved") {
+      const request = accessRequests.find((item) => item._id === requestId);
+      if (request) setApprovalRequest(request);
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, status }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setSuccess("Solicitação recusada!");
+        fetchRequests();
+      } else {
+        setError(result.error || "Erro ao atualizar solicitação.");
+      }
+    } catch {
+      setError("Erro ao atualizar solicitação.");
+    }
+  };
+
+  const handleApprovalSuccess = () => {
+    setApprovalRequest(null);
+    setSuccess("Solicitação aprovada com credenciais!");
+    fetchRequests();
+  };
+
   const filteredCards = cards.filter((c) =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -382,6 +552,7 @@ export default function AdminPage() {
   });
 
   const filteredUsers = sortedUsers.filter((u) => {
+    if (!isMaster && u.role === "master") return false;
     if (userFilter === "pending") return u.status === "pending";
     if (userFilter === "reset") return u.passwordResetRequested;
     if (userFilter === "active") return u.status === "active";
@@ -390,12 +561,13 @@ export default function AdminPage() {
 
   const pendingApprovalsCount = users.filter((u) => u.status === "pending").length;
   const pendingResetsCount = users.filter((u) => u.passwordResetRequested).length;
+  const pendingRequestsCount = accessRequests.filter((request) => request.status === "pending").length;
 
   return (
     <main className="min-h-screen relative overflow-hidden text-slate-800 pb-20 bg-[#eef2f6]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-blue-100/60 via-transparent to-indigo-100/30 pointer-events-none" />
       <div className="max-w-7xl mx-auto px-6 pt-6 relative z-10">
-        <header className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[28px] px-6 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <header id="admin-tour-header" className="bg-white/70 backdrop-blur-2xl border border-white/80 rounded-[28px] px-6 py-4 shadow-[0_10px_30px_rgba(0,0,0,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link href="/" className="w-11 h-11 rounded-full bg-white/90 border border-slate-200/80 hover:bg-white text-slate-700 transition flex items-center justify-center shadow-xs" title="Voltar ao Hub">
               <ArrowLeft size={18} />
@@ -413,7 +585,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="flex items-center bg-slate-200/60 backdrop-blur-md p-1.5 rounded-full border border-slate-300/40 shadow-inner gap-1 self-start md:self-auto">
+          <div id="admin-tour-tabs" className="flex items-center bg-slate-200/60 backdrop-blur-md p-1.5 rounded-full border border-slate-300/40 shadow-inner gap-1 self-start md:self-auto">
             <button onClick={() => setActiveTab("cards")} className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all ${activeTab === "cards" ? "bg-blue-600 text-white shadow-md shadow-blue-500/25" : "text-slate-600 hover:text-slate-900"}`}>
               <Layers size={14} />
               Sistemas ({cards.length})
@@ -423,6 +595,12 @@ export default function AdminPage() {
               <Users size={14} />
               Usuários ({users.length})
               {(pendingApprovalsCount > 0 || pendingResetsCount > 0) && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+            </button>
+
+            <button onClick={() => setActiveTab("requests")} className={`flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all relative ${activeTab === "requests" ? "bg-blue-600 text-white shadow-md shadow-blue-500/25" : "text-slate-600 hover:text-slate-900"}`}>
+              <Globe size={14} />
+              Acessos ({accessRequests.length})
+              {pendingRequestsCount > 0 && <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
             </button>
 
             {isMaster && (
@@ -435,7 +613,7 @@ export default function AdminPage() {
         </header>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 pt-6 relative z-10">
+      <div id="admin-tour-content" className="max-w-7xl mx-auto px-6 pt-6 relative z-10">
         {error && <div className="p-4 mb-6 rounded-2xl bg-rose-50/90 border border-rose-200 text-rose-800 text-xs flex items-center justify-between shadow-sm backdrop-blur-md"><span>{error}</span><button onClick={() => setError("")} className="text-rose-500 hover:text-rose-700"><X size={16} /></button></div>}
         {success && <div className="p-4 mb-6 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between shadow-sm backdrop-blur-md"><span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-600" />{success}</span><button onClick={() => setSuccess("")} className="text-emerald-500 hover:text-emerald-700"><X size={16} /></button></div>}
 
@@ -460,40 +638,112 @@ export default function AdminPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredCards.map((card) => (
-                  <div key={card._id} className="group bg-white/80 backdrop-blur-2xl border border-white/90 hover:border-blue-300/60 rounded-[32px] p-6 flex flex-col justify-between transition-all duration-300 shadow-[0_15px_35px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_45px_rgba(37,99,235,0.08)]">
+                  <div
+                    key={card._id}
+                    className="group bg-white/85 backdrop-blur-xl border border-white/90 hover:border-blue-300/60 rounded-[32px] p-6 flex flex-col justify-between transition-all duration-300 shadow-[0_15px_35px_rgba(0,0,0,0.04)] hover:shadow-[0_20px_45px_rgba(37,99,235,0.08)]"
+                  >
                     <div>
-                      <div className="flex items-start gap-4 mb-3">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
-                          <img src={card.imageUrl} alt={card.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300"; }} />
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white border border-slate-200/80 flex-shrink-0 shadow-xs flex items-center justify-center p-1">
+                          <img
+                            src={card.imageUrl}
+                            alt={card.title}
+                            className="w-full h-full object-contain object-center"
+                            onError={(e) => {
+                              (e.target as any).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300";
+                            }}
+                          />
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <h3 className="text-base font-bold text-slate-900 truncate">{card.title}</h3>
-                          </div>
-
-                          <a href={card.url} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-blue-600 truncate flex items-center gap-1 mt-0.5 font-medium">
+                          <h3 className="text-base font-extrabold text-slate-900 truncate">
+                            {card.title}
+                          </h3>
+                          <a
+                            href={card.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-slate-500 hover:text-blue-600 truncate flex items-center gap-1 mt-0.5 font-medium transition"
+                          >
                             <span className="truncate">{card.url.replace(/^https?:\/\//, "")}</span>
                             <ExternalLink size={10} className="flex-shrink-0" />
                           </a>
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-600 line-clamp-2 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 leading-relaxed">{card.description || "Sem descrição informada."}</p>
+                      <p className="text-xs text-slate-600 line-clamp-2 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100 leading-relaxed">
+                        {card.description || "Sem descrição informada."}
+                      </p>
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100">
-                      <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />Online</span>
+                    <div className="flex items-center justify-between pt-4 mt-5 border-t border-slate-100/80">
+                      <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Online
+                      </span>
 
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => { setEditingId(card._id); setFormData({ title: card.title, description: card.description, url: card.url, imageUrl: card.imageUrl }); setIsModalOpen(true); }} className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition flex items-center justify-center shadow-xs" title="Editar"><Edit2 size={14} /></button>
-                        <button onClick={() => handleDeleteCard(card._id)} className="w-9 h-9 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition flex items-center justify-center shadow-xs" title="Excluir"><Trash2 size={14} /></button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingId(card._id);
+                            setFormData({
+                              title: card.title,
+                              description: card.description,
+                              url: card.url,
+                              imageUrl: card.imageUrl,
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition flex items-center justify-center shadow-xs"
+                          title="Editar"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteCard(card._id)}
+                          className="w-9 h-9 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition flex items-center justify-center shadow-xs"
+                          title="Excluir"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+
+            <div className="mt-12 pt-8 border-t border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 tracking-tight">Atalhos do Painel &quot;Acessos Sites&quot;</h3>
+                  <p className="text-xs text-slate-500 font-medium">Controle os botões de sites disponíveis para todos os colaboradores no Hub.</p>
+                </div>
+                <button onClick={() => { setQuickSiteForm({ id: "", title: "", url: "" }); setIsQuickSiteModalOpen(true); }} className="flex items-center gap-2 bg-slate-900 hover:bg-blue-600 text-white font-bold px-4 py-2.5 rounded-2xl transition shadow-sm text-xs">
+                  <Plus size={15} /> Novo Atalho de Site
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {quickSites.map((site) => (
+                  <div key={site._id} className="bg-white/90 backdrop-blur-xl border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-800 truncate">{site.title}</span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${site.active ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>{site.active ? "Visível" : "Oculto"}</span>
+                      </div>
+                      <a href={site.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-slate-400 hover:text-blue-600 truncate block mt-0.5">{site.url}</a>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button onClick={() => toggleQuickSiteActive(site._id, site.active)} title={site.active ? "Ocultar do Hub" : "Tornar visível no Hub"} className={`p-1.5 rounded-xl border text-xs font-bold transition ${site.active ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-amber-50 hover:text-amber-700" : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700"}`}>{site.active ? "Ocultar" : "Mostrar"}</button>
+                      <button onClick={() => { setQuickSiteForm({ id: site._id, title: site.title, url: site.url }); setIsQuickSiteModalOpen(true); }} className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition" title="Editar Link/Nome"><Edit2 size={13} /></button>
+                      <button onClick={() => handleDeleteQuickSite(site._id)} className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition" title="Excluir"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         )}
 
@@ -567,6 +817,73 @@ export default function AdminPage() {
           </section>
         )}
 
+        {activeTab === "requests" && (
+          <section className="space-y-4">
+            <div className="bg-white/70 backdrop-blur-2xl p-4 rounded-[28px] border border-white/80 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Liberação de Acessos a Sistemas</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Analise os chamados enviados pelos colaboradores.</p>
+              </div>
+              <span className="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
+                Total: {accessRequests.length}
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {accessRequests.length === 0 ? (
+                <div className="p-16 text-center rounded-[32px] border border-dashed border-slate-300 bg-white/50 text-slate-400 text-xs">
+                  Nenhuma solicitação de acesso encontrada.
+                </div>
+              ) : (
+                accessRequests.map((request) => (
+                  <div key={request._id} className="bg-white/85 backdrop-blur-xl border border-white/90 rounded-[32px] p-6 shadow-[0_15px_35px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-bold text-sm text-slate-900">{request.name}</span>
+                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-full font-bold">
+                          {request.systemInterest}
+                        </span>
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold ${request.priority === "Urgente" || request.priority === "Alta" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-600"}`}>
+                          Prioridade: {request.priority}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        <strong>Empresa:</strong> {request.empresa} &bull; <strong>Setor:</strong> {request.setor} &bull; <strong>E-mail:</strong> {request.email}
+                      </p>
+                      <p className="text-xs text-slate-700 bg-slate-50/80 p-3 rounded-2xl border border-slate-100 mt-2.5 leading-relaxed">
+                        &quot;{request.message}&quot;
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {request.status === "pending" ? (
+                        <>
+                          <button
+                            onClick={() => handleRequestAction(request._id, "approved")}
+                            className="px-4 py-2.5 rounded-2xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 size={14} /> Liberar Acesso
+                          </button>
+                          <button
+                            onClick={() => handleRequestAction(request._id, "rejected")}
+                            className="px-3.5 py-2.5 rounded-2xl text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition"
+                          >
+                            Recusar
+                          </button>
+                        </>
+                      ) : (
+                        <span className={`text-xs font-bold px-3.5 py-1.5 rounded-full border ${request.status === "approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"}`}>
+                          {request.status === "approved" ? "Acesso Liberado" : "Recusado"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        )}
+
         {activeTab === "logs" && isMaster && (
           <section className="space-y-6">
             <div className="bg-white/70 backdrop-blur-2xl p-3 rounded-[24px] border border-white/80 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-3">
@@ -615,6 +932,17 @@ export default function AdminPage() {
         )}
       </div>
 
+      {approvalRequest && (
+        <ApproveRequestModal
+          isOpen={Boolean(approvalRequest)}
+          onClose={() => setApprovalRequest(null)}
+          requestId={approvalRequest._id}
+          userName={approvalRequest.name}
+          systemName={approvalRequest.systemInterest}
+          onSuccess={handleApprovalSuccess}
+        />
+      )}
+
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white/95 backdrop-blur-2xl border border-white rounded-[32px] p-6 sm:p-8 max-w-lg w-full shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
@@ -651,10 +979,14 @@ export default function AdminPage() {
 
                   {formData.imageUrl && (
                     <div className="mb-2 relative w-full h-32 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 group">
-                      <img
-                        src={formData.imageUrl}
-                        alt="Prévia"
-                        className="w-full h-full object-cover"
+                      <div
+                        className="w-full h-full"
+                        style={{
+                          backgroundImage: `url(${formData.imageUrl})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat"
+                        }}
                       />
                       <button
                         type="button"
@@ -708,6 +1040,26 @@ export default function AdminPage() {
         </div>
       )}
 
+      {isQuickSiteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-[32px] p-6 max-w-sm w-full shadow-2xl relative">
+            <button type="button" onClick={() => setIsQuickSiteModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full bg-slate-100"><X size={16} /></button>
+            <h3 className="text-base font-extrabold text-slate-900 mb-4">{quickSiteForm.id ? "Editar Atalho de Site" : "Novo Atalho de Site"}</h3>
+            <form onSubmit={handleSaveQuickSite} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Título do Botão *</label>
+                <input type="text" required value={quickSiteForm.title} onChange={(event) => setQuickSiteForm({ ...quickSiteForm, title: event.target.value })} placeholder="Ex: Portal de Notas" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">URL de Destino *</label>
+                <input type="url" required value={quickSiteForm.url} onChange={(event) => setQuickSiteForm({ ...quickSiteForm, url: event.target.value })} placeholder="https://sistema.empresa.com" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500" />
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md shadow-blue-500/20 mt-2">{quickSiteForm.id ? "Salvar Alterações" : "Adicionar Atalho"}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {isUserModalOpen && editingUser && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white/95 backdrop-blur-2xl border border-white rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
@@ -748,6 +1100,7 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      <AdminTutorial isMaster={isMaster} />
     </main>
   );
 }

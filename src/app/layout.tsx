@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Hub Desktop",
+  title: "Hub Produção",
   description: "Hub de acesso rápido para sistemas e ferramentas",
 };
 

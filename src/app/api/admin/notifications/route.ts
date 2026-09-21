@@ -1,27 +1,47 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { connectToDatabase } from "@/lib/mongodb";
+import { auth } from "@/auth";
 import mongoose from "mongoose";
 
 export async function GET() {
   try {
     const session = await auth();
-    const user = session?.user as { role?: string } | undefined;
-    if (user?.role !== "admin" && user?.role !== "master") {
+    const role = (session?.user as any)?.role;
+    if (role !== "admin" && role !== "master") {
       return NextResponse.json({ success: false, error: "Não autorizado" }, { status: 403 });
     }
 
     await connectToDatabase();
     const db = mongoose.connection.db;
-    if (!db) return NextResponse.json({ success: false, error: "Erro de banco" }, { status: 500 });
+    if (!db) return NextResponse.json({ success: false }, { status: 500 });
 
-    const [resetUsers, pendingUsers] = await Promise.all([
-      db.collection("users").find({ passwordResetRequested: true }).project({ _id: 1, name: 1, email: 1, image: 1, avatarUrl: 1, updatedAt: 1 }).toArray(),
-      db.collection("users").find({ status: "pending" }).project({ _id: 1, name: 1, email: 1, image: 1, avatarUrl: 1, createdAt: 1 }).toArray(),
-    ]);
+    // 1. Pedidos de reset de senha
+    const resetRequests = await db.collection("users").countDocuments({ 
+      passwordResetRequested: true 
+    });
 
-    return NextResponse.json({ success: true, data: { total: resetUsers.length + pendingUsers.length, resetUsers, pendingUsers } });
-  } catch {
-    return NextResponse.json({ success: false, error: "Erro ao buscar notificações" }, { status: 500 });
+    // 2. Usuários aguardando aprovação de cadastro
+    const pendingUsers = await db.collection("users").countDocuments({ 
+      status: "pending" 
+    });
+
+    // 3. 🚀 NOVO: Solicitações de acesso a sites pendentes
+    const pendingAccessRequests = await db.collection("access_requests").countDocuments({ 
+      status: "pending" 
+    });
+
+    const total = resetRequests + pendingUsers + pendingAccessRequests;
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        total,
+        resetRequests,
+        pendingUsers,
+        pendingAccessRequests,
+      }
+    });
+  } catch (error) {
+    return NextResponse.json({ success: false }, { status: 500 });
   }
 }
