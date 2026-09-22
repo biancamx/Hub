@@ -83,8 +83,6 @@ export default function Carousel() {
       setIsAddModalOpen(false);
       setPersonalForm({ title: "", description: "", url: "", imageUrl: "" });
       await fetchData();
-    } catch {
-      alert("Erro de conexão.");
     } finally {
       setSubmitting(false);
     }

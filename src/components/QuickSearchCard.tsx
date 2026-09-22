@@ -7,7 +7,13 @@ import AccessRequestModal from "@/components/AccessRequestModal";
 interface SiteAccess { _id: string; systemInterest: string; siteUrl: string; siteUser?: string; passwordViewed?: boolean; credentialsForgot?: boolean; }
 interface DefaultSite { _id: string; title: string; url: string; active?: boolean; }
 
-export default function QuickSearchCard() {
+interface QuickSearchCardProps {
+  isGridActive?: boolean;
+  onToggleGrid?: () => void;
+  totalCardsCount?: number;
+}
+
+export default function QuickSearchCard({ isGridActive = false, onToggleGrid, totalCardsCount }: QuickSearchCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -57,12 +63,13 @@ export default function QuickSearchCard() {
   const filteredDefaultSites = defaultSites.filter((site) => site.title.toLowerCase().includes(filter.toLowerCase()));
   const filteredPrivateSites = myPrivateSites.filter((site) => site.systemInterest.toLowerCase().includes(filter.toLowerCase()));
   const totalSitesCount = defaultSites.length + myPrivateSites.length;
+  const totalCount = totalCardsCount !== undefined ? totalCardsCount : totalSitesCount;
 
   return <>
-    <button id="tour-quick-sites-pill" type="button" onClick={() => setIsOpen(true)} className="group h-11 bg-white/90 hover:bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(15,23,42,0.06)] hover:shadow-[0_15px_30px_rgba(37,99,235,0.1)] backdrop-blur-xl px-4 rounded-full transition-all duration-300 flex items-center gap-2 cursor-pointer active:scale-95">
-      <span className="w-6 h-6 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform"><Globe size={13} /></span>
-      <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 whitespace-nowrap">Acessos Sites</span>
-      <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200/70">{totalSitesCount}</span>
+    <button id="tour-quick-sites-pill" type="button" onClick={onToggleGrid || (() => setIsOpen(true))} title={isGridActive ? "Voltar ao modo Carrossel" : "Ver todos os sites em grade expandida"} className={`group h-11 border backdrop-blur-xl px-4 rounded-full transition-all duration-300 flex items-center gap-2 cursor-pointer active:scale-95 ${isGridActive ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 shadow-lg shadow-blue-500/30" : "bg-white/90 hover:bg-white text-slate-800 border-slate-200/90 shadow-[0_10px_25px_rgba(15,23,42,0.06)] hover:shadow-[0_15px_30px_rgba(37,99,235,0.1)]"}`}>
+      <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-transform ${isGridActive ? "bg-white/20 text-white" : "bg-blue-50 border border-blue-100 text-blue-600 group-hover:scale-105"}`}><Globe size={13} /></span>
+      <span className={`text-xs font-bold whitespace-nowrap transition-colors ${isGridActive ? "text-white" : "text-slate-800 group-hover:text-blue-600"}`}>Acessos Sites</span>
+      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${isGridActive ? "bg-blue-700 text-white border-blue-400/40" : "bg-slate-100 text-slate-500 border-slate-200/70"}`}>{totalCount}</span>
     </button>
 
     {isOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsOpen(false)}>

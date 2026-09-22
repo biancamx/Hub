@@ -27,8 +27,8 @@ export default async function Home() {
         <Navbar user={currentUser} />
       </div>
 
-      <section className="relative z-10 flex-1 flex flex-col justify-center items-center px-4 py-2">
-        <div className="w-full max-w-6xl text-center">
+      <section className="relative z-10 flex-1 flex flex-col justify-center items-center px-2 sm:px-4 py-2 w-full">
+        <div className="w-full max-w-[1700px] text-center">
 
           <div id="tour-hero-text" className="inline-block">
             <h1 className="text-3xl sm:text-5xl md:text-6xl font-semibold text-slate-900 tracking-tight font-sans mb-1 leading-tight" style={{ textRendering: "optimizeLegibility" }}>
