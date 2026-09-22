@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { ChevronLeft, ChevronRight, LayoutGrid, Sparkles, ArrowUpRight, Star, Plus, X, Upload, Save, Loader2, Trash2 } from "lucide-react";
 import QuickSearchCard from "@/components/QuickSearchCard";
+import AddPersonalCardModal from "@/components/AddPersonalCardModal";
 
 interface CardItem { _id: string; title: string; description: string; url: string; imageUrl: string; ownerEmail?: string | null; isAddButton?: boolean; }
 
@@ -15,6 +16,7 @@ export default function Carousel() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isGridMode, setIsGridMode] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [personalForm, setPersonalForm] = useState({ title: "", description: "", url: "", imageUrl: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -129,7 +131,7 @@ export default function Carousel() {
 
   return (
     <div className="w-full flex flex-col items-center select-none py-2 relative">
-      <div ref={stageRef} className="relative z-10 w-full max-w-[1400px] h-[480px] flex items-center justify-center overflow-visible px-16">
+      {!isGridMode && <div ref={stageRef} className="relative z-10 w-full max-w-[1400px] h-[480px] flex items-center justify-center overflow-visible px-16 animate-in fade-in duration-300">
         <div className="absolute w-[500px] h-[350px] rounded-full bg-gradient-to-tr from-blue-500/20 via-sky-400/15 to-indigo-500/10 blur-[120px] pointer-events-none z-0" />
 
         {carouselItems.length > 1 && (
@@ -181,14 +183,33 @@ export default function Carousel() {
             <ChevronRight size={24} />
           </button>
         )}
-      </div>
+      </div>}
+
+      {isGridMode && <div className="w-full max-w-[1650px] px-2 sm:px-6 my-3 animate-in fade-in duration-300">
+        <div className="max-h-[520px] overflow-y-auto pr-1 py-1">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2.5 sm:gap-3">
+            {sortedCards.map((card) => {
+              const isFavorited = favorites.includes(card._id);
+              return <div key={`grid-${card._id}`} className="group bg-white hover:bg-slate-50/90 border border-slate-200/90 hover:border-blue-300 rounded-[22px] p-2.5 sm:p-3 shadow-sm flex flex-col justify-between items-center relative h-[168px] text-center">
+                <button type="button" onClick={(event) => toggleFavorite(card._id, event)} title={isFavorited ? "Remover dos favoritos" : "Favoritar"} className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center"><Star size={13} className={isFavorited ? "fill-amber-400 text-amber-500" : "text-slate-300"} /></button>
+                <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 p-1 flex items-center justify-center overflow-hidden mt-1"><img src={card.imageUrl} alt={card.title} className="w-full h-full object-contain rounded-full" onError={(event) => { event.currentTarget.src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200"; }} /></div>
+                <div className="w-full my-auto px-1"><h4 className="text-xs font-extrabold text-slate-900 truncate">{card.title}</h4><p className="text-[9px] text-slate-500 line-clamp-1 truncate">{card.description || "Ferramenta de produção"}</p></div>
+                <a href={card.url} target="_blank" rel="noopener noreferrer" className="w-full py-1.5 rounded-xl bg-slate-950 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1">Acessar<ChevronRight size={11} /></a>
+              </div>;
+            })}
+            <button type="button" onClick={() => setIsAddModalOpen(true)} className="bg-white/70 hover:bg-blue-50/50 border-2 border-dashed border-blue-300 rounded-[22px] p-3 flex flex-col justify-center items-center text-center cursor-pointer h-[168px]"><div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-1.5"><Plus size={18} /></div><span className="text-xs font-bold text-slate-800">Novo Sistema</span><span className="text-[9px] text-slate-400 mt-0.5">Adicionar atalho</span></button>
+          </div>
+        </div>
+      </div>}
 
       {carouselItems.length > 1 && <div className="flex items-center gap-2 mt-4">{carouselItems.map((card, index) => <button key={card._id} onClick={() => setCurrentIndex(index)} aria-label={`Ir para card ${index + 1}`} className={`h-1.5 rounded-full transition-all duration-500 ${index === currentIndex ? "w-8 bg-blue-600 shadow-sm shadow-blue-500/40" : "w-1.5 bg-slate-300 hover:bg-slate-400"}`} />)}</div>}
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3 z-20 animate-in fade-in slide-in-from-bottom-3 duration-300">
         {favoriteCards.length > 0 && <div id="tour-dock-favorites" className="h-11 bg-white/90 backdrop-blur-xl px-3.5 rounded-full border border-slate-200/90 shadow-[0_10px_25px_rgba(15,23,42,0.06)] flex items-center gap-2"><div className="pl-0.5 pr-2 border-r border-slate-200 flex items-center justify-center text-amber-500"><Star size={14} className="fill-amber-400 text-amber-500" /></div><div className="flex items-center gap-1.5 overflow-x-auto max-w-[400px]">{favoriteCards.map((favorite) => <a key={`dock-${favorite._id}`} href={favorite.url} target="_blank" rel="noopener noreferrer" title={`Abrir ${favorite.title}`} className="group relative flex items-center gap-2 p-1 pr-2.5 rounded-full hover:bg-slate-100 active:scale-95 transition-all"><div className="w-7 h-7 rounded-full overflow-hidden bg-white border border-slate-200 shadow-xs flex-shrink-0 group-hover:scale-105 transition-transform"><img src={favorite.imageUrl} alt={favorite.title} className="w-full h-full object-contain" onError={(event) => { (event.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100"; }} /></div><span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors whitespace-nowrap">{favorite.title}</span></a>)}</div></div>}
-        <QuickSearchCard />
+        <QuickSearchCard isGridActive={isGridMode} onToggleGrid={() => setIsGridMode((active) => !active)} totalCardsCount={cards.length} />
       </div>
+
+      <AddPersonalCardModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={fetchData} />
 
       {isAddModalOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[10000] flex items-center justify-center p-4">
         <div className="bg-white/95 backdrop-blur-2xl border border-white rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl relative font-sans text-slate-800" onClick={(event) => event.stopPropagation()}>
