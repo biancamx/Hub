@@ -2,12 +2,25 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import Card from "@/models/card";
 import { auth } from "@/auth";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-
 export async function GET() {
   try {
     await connectToDatabase();
-    const cards = await Card.find({}).sort({ createdAt: -1 });
+    const session = await auth();
+    const userEmail = session?.user?.email ? session.user.email.toLowerCase().trim() : null;
+    const filter = userEmail
+      ? {
+          $or: [
+            { userEmail: null },
+            { userEmail: { $exists: false } },
+            { userEmail: "" },
+            { userEmail },
+          ],
+        }
+      : {
+          $or: [{ userEmail: null }, { userEmail: { $exists: false } }, { userEmail: "" }],
+        };
+
+    const cards = await Card.find(filter).sort({ createdAt: -1 });
     return NextResponse.json({ success: true, data: cards });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Erro interno do servidor.";
@@ -21,31 +34,18 @@ export async function GET() {
 // POST: Cria um novo card
 export async function POST(request: Request) {
   try {
-    const limiter = checkRateLimit(`cards_${getClientIp(request)}`, {
-      interval: 60 * 1000,
-      maxRequests: 10,
-    });
-
-    if (!limiter.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Muitas alterações enviadas em pouco tempo. Aguarde ${limiter.retryAfter} segundos.`,
-        },
-        { status: 429 }
-      );
-    }
-
     const session = await auth();
-    const user = session?.user as ({ role?: string } | undefined);
-    if (user?.role !== "admin" && user?.role !== "master") {
-      return NextResponse.json({ success: false, error: "Acesso negado." }, { status: 403 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ success: false, error: "Você precisa estar logado." }, { status: 401 });
     }
 
+    const userEmail = session.user.email.toLowerCase().trim();
+    const userRole = (session.user as { role?: string }).role;
+    const isAdmin = userRole === "admin" || userRole === "master";
     await connectToDatabase();
     const body = await request.json();
 
-    const { title, description, url, imageUrl } = body;
+    const { title, description, url, imageUrl, isPersonal } = body;
 
     if (typeof title !== "string" || typeof url !== "string" || typeof imageUrl !== "string" || !title.trim() || !url.trim() || !imageUrl.trim()) {
       return NextResponse.json(
@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       description: description || "",
       url,
       imageUrl,
+      userEmail: isPersonal || !isAdmin ? userEmail : null,
     });
 
     return NextResponse.json({ success: true, data: newCard }, { status: 201 });

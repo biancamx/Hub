@@ -5,6 +5,7 @@ export interface ICard extends Document {
   description: string;
   url: string;
   imageUrl: string;
+  userEmail?: string | null;
   createdAt: Date;
 }
 
@@ -14,6 +15,7 @@ const CardSchema = new Schema<ICard>(
     description: { type: String, default: "" },
     url: { type: String, required: [true, "A URL de destino é obrigatória"] },
     imageUrl: { type: String, required: [true, "A URL da imagem é obrigatória"] },
+    userEmail: { type: String, default: null },
   },
   {
     timestamps: true,
