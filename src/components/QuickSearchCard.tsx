@@ -128,10 +128,6 @@ export default function QuickSearchCard({ isGridActive = false, onToggleGrid, to
       <span className={`text-xs font-bold whitespace-nowrap transition-colors ${isGridActive ? "text-white" : "text-slate-800 group-hover:text-blue-600"}`}>Acessos Sites</span>
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${isGridActive ? "bg-blue-700 text-white border-blue-400/40" : "bg-slate-100 text-slate-500 border-slate-200/70"}`}>{totalCount}</span>
     </button>
-    <button type="button" onClick={() => setIsOpen(true)} aria-label="Abrir meus links pessoais" className="h-11 px-3 rounded-full bg-white/90 hover:bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm flex items-center gap-1.5 text-xs font-bold transition-colors">
-      <Bookmark size={14} />
-      <span>Meus links</span>
-    </button>
 
     {isOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsOpen(false)}>
       <div className="w-full max-w-2xl bg-white/95 backdrop-blur-2xl border border-white rounded-[36px] p-6 sm:p-7 shadow-2xl relative text-slate-800" onClick={(event) => event.stopPropagation()}>

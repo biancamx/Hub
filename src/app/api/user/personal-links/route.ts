@@ -4,6 +4,9 @@ import { connectToDatabase } from "@/lib/mongodb";
 import PersonalLink from "@/models/PersonalLink";
 import mongoose from "mongoose";
 
+const fallbackImage = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200";
+const maxImageLength = 3 * 1024 * 1024;
+
 function getAuthenticatedEmail(email: string | null | undefined) {
   return email?.toLowerCase().trim() || null;
 }
@@ -50,10 +53,18 @@ export async function POST(request: Request) {
 
     const title = isRecord(body) && typeof body.title === "string" ? body.title.trim() : "";
     const url = isRecord(body) && typeof body.url === "string" ? body.url.trim() : "";
+    const description =
+      isRecord(body) && typeof body.description === "string"
+        ? body.description.trim()
+        : "";
+    const imageUrl =
+      isRecord(body) && typeof body.imageUrl === "string"
+        ? body.imageUrl.trim()
+        : "";
     if (!title || !url) {
       return NextResponse.json({ success: false, error: "Título e link são obrigatórios." }, { status: 400 });
     }
-    if (title.length > 100 || url.length > 2048) {
+    if (title.length > 100 || url.length > 2048 || description.length > 300) {
       return NextResponse.json({ success: false, error: "Título ou link excede o limite permitido." }, { status: 400 });
     }
 
@@ -67,8 +78,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "A URL deve usar HTTP ou HTTPS." }, { status: 400 });
     }
 
+    let validatedImageUrl = fallbackImage;
+    if (imageUrl) {
+      if (imageUrl.length > maxImageLength) {
+        return NextResponse.json({ success: false, error: "A imagem deve ter até 2 MB." }, { status: 400 });
+      }
+      if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z\d+/]+=*$/i.test(imageUrl)) {
+        validatedImageUrl = imageUrl;
+      } else {
+        let parsedImageUrl: URL;
+        try {
+          parsedImageUrl = new URL(imageUrl);
+        } catch {
+          return NextResponse.json({ success: false, error: "Informe uma imagem válida." }, { status: 400 });
+        }
+        if (parsedImageUrl.protocol !== "https:") {
+          return NextResponse.json({ success: false, error: "A imagem deve usar HTTPS." }, { status: 400 });
+        }
+        validatedImageUrl = parsedImageUrl.toString();
+      }
+    }
+
     await connectToDatabase();
-    const newLink = await PersonalLink.create({ userEmail: email, title, url: parsedUrl.toString() });
+    const newLink = await PersonalLink.create({
+      userEmail: email,
+      title,
+      description: description || "Ferramenta pessoal personalizada",
+      url: parsedUrl.toString(),
+      imageUrl: validatedImageUrl,
+    });
 
     return NextResponse.json({ success: true, data: newLink }, { status: 201 });
   } catch (error: unknown) {
