@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   ArrowUpRight,
   Check,
   ChevronLeft,
@@ -267,6 +268,16 @@ export default function Carousel() {
       </div>}
 
       {isGridMode && <div className="w-full max-w-[1600px] px-4 sm:px-8 my-2 animate-in fade-in duration-300">
+        <div className="flex items-center justify-center mb-4">
+          <button
+            type="button"
+            onClick={() => setIsGridMode(false)}
+            className="group bg-white/90 hover:bg-white border border-slate-200/90 shadow-sm hover:shadow-md px-4 py-2 rounded-full transition-all flex items-center gap-2 text-xs font-bold text-slate-700 hover:text-blue-600 active:scale-95 cursor-pointer"
+          >
+            <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+            <span>Voltar para os Sistemas</span>
+          </button>
+        </div>
         <div className="max-w-md mx-auto mb-6 relative"><Search size={15} className="absolute left-4 top-3 text-slate-400" /><input type="text" placeholder="Pesquisar nos sites e ferramentas..." value={siteSearch} onChange={(event) => setSiteSearch(event.target.value)} className="w-full bg-white border border-slate-200 rounded-full pl-11 pr-4 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-sm" /></div>
         <div className="max-h-[480px] overflow-y-auto pr-1 py-1"><div className="grid grid-cols-[repeat(auto-fill,minmax(125px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(135px,1fr))] gap-3">
           {filteredAccessSites.map((site) => <div key={`site-${site._id}`} className="group bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-300 rounded-[22px] p-3 shadow-sm flex flex-col justify-between items-center text-center relative h-[168px]">
