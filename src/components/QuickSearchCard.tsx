@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, Copy, ExternalLink, Globe, HelpCircle, Key, Search, Sparkles, X } from "lucide-react";
+import { Bookmark, Check, ChevronRight, Copy, ExternalLink, Globe, HelpCircle, Key, Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import AccessRequestModal from "@/components/AccessRequestModal";
 
 interface SiteAccess { _id: string; systemInterest: string; siteUrl: string; siteUser?: string; passwordViewed?: boolean; credentialsForgot?: boolean; }
 interface DefaultSite { _id: string; title: string; url: string; active?: boolean; }
+interface PersonalLinkItem { _id: string; title: string; url: string; }
 
 interface QuickSearchCardProps {
   isGridActive?: boolean;
@@ -19,18 +20,29 @@ export default function QuickSearchCard({ isGridActive = false, onToggleGrid, to
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [defaultSites, setDefaultSites] = useState<DefaultSite[]>([]);
   const [myPrivateSites, setMyPrivateSites] = useState<SiteAccess[]>([]);
+  const [personalLinks, setPersonalLinks] = useState<PersonalLinkItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAddPersonalOpen, setIsAddPersonalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [submittingPersonal, setSubmittingPersonal] = useState(false);
   const [credentialModal, setCredentialModal] = useState<{ systemName: string; siteUrl: string; siteUser: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchSites = async () => {
       try {
-        const [privateResponse, defaultResponse] = await Promise.all([fetch("/api/user/my-sites"), fetch("/api/quick-sites")]);
+        const [privateResponse, defaultResponse, personalResponse] = await Promise.all([
+          fetch("/api/user/my-sites"),
+          fetch("/api/quick-sites"),
+          fetch("/api/user/personal-links"),
+        ]);
         const privateData = await privateResponse.json();
         const defaultData = await defaultResponse.json();
+        const personalData = await personalResponse.json();
         if (privateData.success) setMyPrivateSites(privateData.data);
         if (defaultData.success) setDefaultSites(defaultData.data);
+        if (personalData.success) setPersonalLinks(personalData.data);
       } catch { console.error("Erro ao buscar sites"); } finally { setLoading(false); }
     };
     void fetchSites();
@@ -60,9 +72,54 @@ export default function QuickSearchCard({ isGridActive = false, onToggleGrid, to
     } catch { alert("Erro de conexão."); }
   };
 
+  const addPersonalLink = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!newTitle.trim() || !newUrl.trim()) return;
+
+    setSubmittingPersonal(true);
+    try {
+      const response = await fetch("/api/user/personal-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle, url: newUrl }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        alert(data.error || "Erro ao adicionar link.");
+        return;
+      }
+
+      setPersonalLinks((previous) => [data.data as PersonalLinkItem, ...previous]);
+      setNewTitle("");
+      setNewUrl("");
+      setIsAddPersonalOpen(false);
+    } catch {
+      alert("Erro ao conectar ao servidor.");
+    } finally {
+      setSubmittingPersonal(false);
+    }
+  };
+
+  const deletePersonalLink = async (id: string) => {
+    if (!window.confirm("Deseja remover este atalho pessoal?")) return;
+
+    try {
+      const response = await fetch(`/api/user/personal-links?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        alert(data.error || "Erro ao excluir link.");
+        return;
+      }
+      setPersonalLinks((previous) => previous.filter((link) => link._id !== id));
+    } catch {
+      alert("Erro ao conectar ao servidor.");
+    }
+  };
+
   const filteredDefaultSites = defaultSites.filter((site) => site.title.toLowerCase().includes(filter.toLowerCase()));
   const filteredPrivateSites = myPrivateSites.filter((site) => site.systemInterest.toLowerCase().includes(filter.toLowerCase()));
-  const totalSitesCount = defaultSites.length + myPrivateSites.length;
+  const filteredPersonalLinks = personalLinks.filter((link) => link.title.toLowerCase().includes(filter.toLowerCase()));
+  const totalSitesCount = defaultSites.length + myPrivateSites.length + personalLinks.length;
   const totalCount = totalCardsCount !== undefined ? totalCardsCount : totalSitesCount;
 
   return <>
@@ -71,6 +128,10 @@ export default function QuickSearchCard({ isGridActive = false, onToggleGrid, to
       <span className={`text-xs font-bold whitespace-nowrap transition-colors ${isGridActive ? "text-white" : "text-slate-800 group-hover:text-blue-600"}`}>Acessos Sites</span>
       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${isGridActive ? "bg-blue-700 text-white border-blue-400/40" : "bg-slate-100 text-slate-500 border-slate-200/70"}`}>{totalCount}</span>
     </button>
+    <button type="button" onClick={() => setIsOpen(true)} aria-label="Abrir meus links pessoais" className="h-11 px-3 rounded-full bg-white/90 hover:bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm flex items-center gap-1.5 text-xs font-bold transition-colors">
+      <Bookmark size={14} />
+      <span>Meus links</span>
+    </button>
 
     {isOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setIsOpen(false)}>
       <div className="w-full max-w-2xl bg-white/95 backdrop-blur-2xl border border-white rounded-[36px] p-6 sm:p-7 shadow-2xl relative text-slate-800" onClick={(event) => event.stopPropagation()}>
@@ -78,10 +139,53 @@ export default function QuickSearchCard({ isGridActive = false, onToggleGrid, to
         <div className="flex items-center gap-3 mb-5 pr-8"><div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600"><Globe size={20} /></div><div><h3 className="text-lg font-extrabold text-slate-900">Acessos a Sites &amp; Ferramentas</h3><p className="text-xs text-slate-500">{totalSitesCount} atalhos disponíveis</p></div></div>
         <div className="bg-[#f1f4f8] border border-slate-200/70 rounded-[28px] p-4 sm:p-5">
           <div className="relative mb-3.5"><Search size={14} className="absolute left-3.5 top-3 text-slate-400" /><input type="text" placeholder="Filtrar atalhos por nome..." value={filter} onChange={(event) => setFilter(event.target.value)} className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-blue-500" /></div>
+          <section className="mb-4">
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                <Bookmark size={11} /> Meus Links Particulares ({personalLinks.length})
+              </span>
+              <button type="button" onClick={() => setIsAddPersonalOpen(true)} className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-white hover:bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200 transition">
+                <Plus size={13} /> Adicionar Meu Link
+              </button>
+            </div>
+            {loading ? <div className="h-12 rounded-2xl bg-white animate-pulse" /> : filteredPersonalLinks.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {filteredPersonalLinks.map((link) => (
+                  <div key={link._id} className="group flex items-center justify-between p-3.5 rounded-2xl bg-white border border-indigo-100 shadow-sm">
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 pr-2">
+                      <span className="text-xs font-bold truncate block text-slate-800 group-hover:text-indigo-600">{link.title}</span>
+                    </a>
+                    <button type="button" onClick={() => void deletePersonalLink(link._id)} aria-label={`Excluir ${link.title}`} title="Remover link" className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-xs text-slate-500 px-1 py-2">Nenhum link pessoal{filter ? " encontrado" : " cadastrado"}.</p>}
+          </section>
           {myPrivateSites.length > 0 && <section className="mb-4"><span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 mb-2.5"><Sparkles size={11} />Meus Acessos Liberados ({myPrivateSites.length})</span><div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">{loading ? <div className="h-12 rounded-2xl bg-white animate-pulse" /> : filteredPrivateSites.map((site) => <div key={site._id} className="group flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200/90"><a href={site.siteUrl} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 pr-1"><span className="text-xs font-bold truncate block group-hover:text-blue-600">{site.systemInterest}</span></a><span className="flex items-center gap-1">{!site.passwordViewed ? <button onClick={(event) => revealPassword(site._id, site.systemInterest, event)} title="Ver credenciais" className="p-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-300"><Key size={11} /></button> : <button onClick={(event) => forgotPassword(site._id, site.systemInterest, event)} title="Esqueci a senha" className="p-1 text-slate-300 hover:text-slate-600"><HelpCircle size={13} /></button>}<ChevronRight size={13} className="text-slate-300" /></span></div>)}</div></section>}
           <section><span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block mb-2 px-1">Sistemas Globais Padrão</span><div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">{filteredDefaultSites.map((site) => <a key={site._id} href={site.url} target="_blank" rel="noopener noreferrer" className="group flex items-center justify-between p-3.5 rounded-2xl bg-white hover:bg-blue-600 text-slate-700 hover:text-white border border-slate-200/80 transition-all"><span className="text-xs font-bold truncate">{site.title}</span><ChevronRight size={14} /></a>)}</div></section>
           <button type="button" onClick={() => { setIsOpen(false); setIsRequestModalOpen(true); }} className="w-full mt-4 flex items-center justify-between p-3.5 px-5 rounded-2xl bg-white text-slate-900 border border-slate-200/80"><span className="text-xs font-black">Solicitar Acesso a Outro Site</span><ChevronRight size={14} /></button>
         </div>
+      </div>
+    </div>}
+
+    {isAddPersonalOpen && <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-[10001] flex items-center justify-center p-4" onClick={() => setIsAddPersonalOpen(false)}>
+      <div className="w-full max-w-sm bg-white border border-slate-200 rounded-[32px] p-6 shadow-2xl relative text-slate-800" onClick={(event) => event.stopPropagation()}>
+        <button type="button" onClick={() => setIsAddPersonalOpen(false)} aria-label="Fechar formulário" className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full bg-slate-100"><X size={16} /></button>
+        <div className="flex items-center gap-2.5 mb-1"><div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center"><Bookmark size={16} /></div><h4 className="text-base font-extrabold text-slate-900">Novo Link Particular</h4></div>
+        <p className="text-xs text-slate-500 mb-4">Este link ficará visível apenas para você.</p>
+        <form onSubmit={addPersonalLink} className="space-y-3">
+          <label className="block text-xs font-semibold text-slate-700">Nome do link
+            <input type="text" required maxLength={100} value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Ex.: Minha planilha" className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500" />
+          </label>
+          <label className="block text-xs font-semibold text-slate-700">URL
+            <input type="url" required maxLength={2048} value={newUrl} onChange={(event) => setNewUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-indigo-500" />
+          </label>
+          <button type="submit" disabled={submittingPersonal} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 disabled:opacity-50">
+            {submittingPersonal ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Salvar no Meu Hub
+          </button>
+        </form>
       </div>
     </div>}
 
